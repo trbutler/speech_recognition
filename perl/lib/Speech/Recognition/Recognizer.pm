@@ -567,10 +567,9 @@ sub recognize_google_cloud ( $self, $audio_data, %args ) {
 =head2 recognize_whisper_local($audio_data, %args)
 
 Recognizes speech locally using the C<whisper> or C<whisper-cpp> binary.
-No API key or internet connection is required at inference time.  Either the
-C<whisper> CLI (installed via C<pip install openai-whisper>) or the C<whisper-cpp>
-binary (built from L<https://github.com/ggerganov/whisper.cpp>) must be on
-your C<$PATH>.
+No API key or internet connection is required at inference time.  C<whisper-cpp>
+supports hardware acceleration via Metal (Apple Silicon), CUDA (NVIDIA), and
+other backends with no Python dependency.
 
     my $text = $r->recognize_whisper_local($audio,
         model    => 'base',
