@@ -525,7 +525,8 @@ C<audio_data =E<gt> undef> and C<job_name =E<gt> $id>.
 
     # Submit
     eval { $r->recognize_assemblyai($audio, api_token => $token) };
-    my $job_id = $@->job_name if ref $@ && $@->isa('..::TranscriptionNotReady');
+    my $job_id = $@->job_name
+        if ref $@ && $@->isa('Speech::Recognition::Exception::TranscriptionNotReady');
 
     # Poll
     my $text = $r->recognize_assemblyai(undef,
