@@ -237,6 +237,7 @@ sub recognize ( $self, $audio_data, %args ) {
         @$alts ? $alts->[0]{transcript} // '' : ''
     } @results;
     $transcript =~ s/^\s+|\s+$//g;
+    Speech::Recognition::Recognizer::_Base::throw_unknown() if $transcript eq '';
     return $transcript;
 }
 
