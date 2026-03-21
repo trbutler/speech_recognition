@@ -3,6 +3,7 @@ package Speech::Recognition::Recognizer::Whisper;
 use v5.36;
 use File::Temp qw(tempfile tempdir);
 use IPC::Open3 ();
+use IO::Select ();
 use Speech::Recognition::Recognizer::_Base qw();
 
 our $VERSION = '0.01';
@@ -59,7 +60,7 @@ transcript string.
 =cut
 
 # ---------------------------------------------------------------------------
-# Binary search order: whisper → whisper-mps → whisper-cpp
+# Binary search order: whisper → whisper-cpp
 # ---------------------------------------------------------------------------
 
 my @_WHISPER_BINS = qw( whisper whisper-cpp );
@@ -76,7 +77,7 @@ sub _find_whisper_bin () {
 # Internal: run the located whisper binary and parse its JSON output
 # ---------------------------------------------------------------------------
 
-# whisper (openai-whisper) and whisper-mps share the same CLI surface;
+# whisper (openai-whisper) uses a Python-style CLI interface;
 # whisper-cpp uses slightly different flags.
 sub _run_whisper ( $bin, $name, $wav_file, $model, $language, $task, $out_dir ) {
     my @cmd;
@@ -106,15 +107,27 @@ sub _run_whisper ( $bin, $name, $wav_file, $model, $language, $task, $out_dir ) 
         push @cmd, $wav_file;
     }
 
-    # Run and drain stderr (whisper prints verbose progress there) to prevent
-    # the child process from blocking on a full pipe buffer.
+    # Run the child process with separate handles for stdout and stderr.
+    # Drain both concurrently via IO::Select to prevent deadlocks when either
+    # pipe buffer fills up.  whisper writes its results to JSON files in
+    # $out_dir, not to stdout, so $out_text is captured but only used in
+    # the error message if the child exits non-zero.
     my ( $child_in, $child_out, $child_err );
-    my $pid = IPC::Open3::open3( $child_in, $child_err, $child_err, @cmd );
+    my $pid = IPC::Open3::open3( $child_in, $child_out, $child_err, @cmd );
     close $child_in;
 
-    my $err_text = '';
-    while ( defined( my $line = <$child_err> ) ) {
-        $err_text .= $line;
+    my $sel = IO::Select->new( $child_out, $child_err );
+    my ( $out_text, $err_text ) = ( '', '' );
+    while ( my @ready = $sel->can_read() ) {
+        for my $fh (@ready) {
+            if ( defined( my $line = <$fh> ) ) {
+                if ( $fh == $child_out ) { $out_text .= $line }
+                else                     { $err_text .= $line }
+            }
+            else {
+                $sel->remove($fh);
+            }
+        }
     }
     waitpid $pid, 0;
     my $exit = $? >> 8;

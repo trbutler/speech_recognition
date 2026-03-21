@@ -22,6 +22,8 @@ require Speech::Recognition::Recognizer::IBM;
 require Speech::Recognition::Recognizer::OpenAI;
 require Speech::Recognition::Recognizer::Groq;
 require Speech::Recognition::Recognizer::AssemblyAI;
+require Speech::Recognition::Recognizer::GoogleCloud;
+require Speech::Recognition::Recognizer::Whisper;
 
 # ---------------------------------------------------------------------------
 # Helper: generate a short PCM sine wave for testing
@@ -355,6 +357,180 @@ subtest 'Groq backend - successful transcription' => sub {
         $ua
     );
     is $text, 'groq result', 'Groq returns text field';
+};
+
+# ===========================================================================
+# 7. Google Cloud Speech-to-Text backend
+# ===========================================================================
+
+# Fake service-account credentials JSON (inline, so no file I/O needed).
+my $FAKE_CREDS = '{"client_email":"test@project.iam.gserviceaccount.com","private_key":"fake-key"}';
+
+subtest 'GoogleCloud backend - successful transcription' => sub {
+    # Mock _make_jwt to bypass Crypt::OpenSSL::RSA
+    local *Speech::Recognition::Recognizer::GoogleCloud::_make_jwt
+        = sub { 'fake.jwt.signature' };
+
+    my @responses = (
+        HTTP::Response->new( 200, 'OK',
+            HTTP::Headers->new( 'Content-Type' => 'application/json' ),
+            '{"access_token":"fake_token","token_type":"Bearer","expires_in":3600}' ),
+        HTTP::Response->new( 200, 'OK',
+            HTTP::Headers->new( 'Content-Type' => 'application/json' ),
+            '{"results":[{"alternatives":[{"transcript":"hello cloud"}]}]}' ),
+    );
+    my $call_num = 0;
+    my $ua = Test::LWP::UserAgent->new( network_fallback => 0 );
+    $ua->map_response( sub {1}, sub { $responses[ $call_num++ ] } );
+
+    my $audio = make_audio();
+    my $text;
+    with_mock_ua(
+        sub {
+            $text = $r->recognize_google_cloud( $audio,
+                credentials_json => $FAKE_CREDS,
+            );
+        },
+        $ua
+    );
+    is $text, 'hello cloud', 'GoogleCloud returns transcript';
+};
+
+subtest 'GoogleCloud backend - OAuth token failure becomes RequestError' => sub {
+    local *Speech::Recognition::Recognizer::GoogleCloud::_make_jwt
+        = sub { 'fake.jwt.signature' };
+
+    my $ua = make_mock_ua( 401, '{"error":"invalid_grant"}' );
+
+    my $audio = make_audio();
+    eval {
+        with_mock_ua(
+            sub {
+                $r->recognize_google_cloud( $audio,
+                    credentials_json => $FAKE_CREDS,
+                );
+            },
+            $ua
+        );
+    };
+    my $e = $@;
+    ok ref $e && $e->isa('Speech::Recognition::Exception::RequestError'),
+        'OAuth token failure becomes RequestError';
+};
+
+subtest 'GoogleCloud backend - empty results become UnknownValueError' => sub {
+    local *Speech::Recognition::Recognizer::GoogleCloud::_make_jwt
+        = sub { 'fake.jwt.signature' };
+
+    my @responses = (
+        HTTP::Response->new( 200, 'OK',
+            HTTP::Headers->new( 'Content-Type' => 'application/json' ),
+            '{"access_token":"fake_token","token_type":"Bearer","expires_in":3600}' ),
+        HTTP::Response->new( 200, 'OK',
+            HTTP::Headers->new( 'Content-Type' => 'application/json' ),
+            '{"results":[]}' ),
+    );
+    my $call_num = 0;
+    my $ua = Test::LWP::UserAgent->new( network_fallback => 0 );
+    $ua->map_response( sub {1}, sub { $responses[ $call_num++ ] } );
+
+    my $audio = make_audio();
+    eval {
+        with_mock_ua(
+            sub {
+                $r->recognize_google_cloud( $audio,
+                    credentials_json => $FAKE_CREDS,
+                );
+            },
+            $ua
+        );
+    };
+    my $e = $@;
+    ok ref $e && $e->isa('Speech::Recognition::Exception::UnknownValueError'),
+        'empty results become UnknownValueError';
+};
+
+subtest 'GoogleCloud backend - show_all returns full hash' => sub {
+    local *Speech::Recognition::Recognizer::GoogleCloud::_make_jwt
+        = sub { 'fake.jwt.signature' };
+
+    my @responses = (
+        HTTP::Response->new( 200, 'OK',
+            HTTP::Headers->new( 'Content-Type' => 'application/json' ),
+            '{"access_token":"fake_token","token_type":"Bearer","expires_in":3600}' ),
+        HTTP::Response->new( 200, 'OK',
+            HTTP::Headers->new( 'Content-Type' => 'application/json' ),
+            '{"results":[{"alternatives":[{"transcript":"raw text"}]}]}' ),
+    );
+    my $call_num = 0;
+    my $ua = Test::LWP::UserAgent->new( network_fallback => 0 );
+    $ua->map_response( sub {1}, sub { $responses[ $call_num++ ] } );
+
+    my $audio = make_audio();
+    my $all;
+    with_mock_ua(
+        sub {
+            $all = $r->recognize_google_cloud( $audio,
+                credentials_json => $FAKE_CREDS,
+                show_all         => 1,
+            );
+        },
+        $ua
+    );
+    is ref $all, 'HASH', 'show_all returns hashref';
+    is $all->{results}[0]{alternatives}[0]{transcript}, 'raw text',
+        'transcript accessible in show_all result';
+};
+
+# ===========================================================================
+# 8. Local Whisper backend
+# ===========================================================================
+
+subtest 'Whisper backend - SetupError when no binary found' => sub {
+    no warnings 'once';
+    local *Speech::Recognition::Recognizer::_Base::which = sub { undef };
+    my $audio = make_audio();
+    eval { $r->recognize_whisper_local($audio) };
+    my $e = $@;
+    ok ref $e && $e->isa('Speech::Recognition::Exception::SetupError'),
+        'missing whisper binary throws SetupError';
+    like $e->message, qr/whisper/i, 'error message mentions whisper';
+};
+
+subtest 'Whisper backend - successful JSON parsing' => sub {
+    local *Speech::Recognition::Recognizer::Whisper::_find_whisper_bin
+        = sub { ( '/usr/bin/whisper', 'whisper' ) };
+    local *Speech::Recognition::Recognizer::Whisper::_run_whisper
+        = sub { return { text => '  hello whisper  ' } };
+
+    my $audio = make_audio();
+    my $text  = $r->recognize_whisper_local($audio);
+    is $text, 'hello whisper', 'Whisper trims whitespace and returns transcript';
+};
+
+subtest 'Whisper backend - empty transcript becomes UnknownValueError' => sub {
+    local *Speech::Recognition::Recognizer::Whisper::_find_whisper_bin
+        = sub { ( '/usr/bin/whisper', 'whisper' ) };
+    local *Speech::Recognition::Recognizer::Whisper::_run_whisper
+        = sub { return { text => '' } };
+
+    my $audio = make_audio();
+    eval { $r->recognize_whisper_local($audio) };
+    my $e = $@;
+    ok ref $e && $e->isa('Speech::Recognition::Exception::UnknownValueError'),
+        'empty transcript throws UnknownValueError';
+};
+
+subtest 'Whisper backend - show_all returns full result hash' => sub {
+    local *Speech::Recognition::Recognizer::Whisper::_find_whisper_bin
+        = sub { ( '/usr/bin/whisper', 'whisper' ) };
+    local *Speech::Recognition::Recognizer::Whisper::_run_whisper
+        = sub { return { text => 'hello', segments => [] } };
+
+    my $audio  = make_audio();
+    my $result = $r->recognize_whisper_local( $audio, show_all => 1 );
+    is ref $result, 'HASH',    'show_all returns hashref';
+    is $result->{text}, 'hello', 'text field accessible in show_all result';
 };
 
 done_testing();
