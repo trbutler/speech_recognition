@@ -2,6 +2,8 @@ package Speech::Recognition::Recognizer::_Base;
 
 use v5.36;
 use Carp            qw(croak);
+use IPC::Open3            ();
+use IO::Select            ();
 use LWP::UserAgent        ();
 use HTTP::Request         ();
 use HTTP::Request::Common qw(POST);
@@ -81,6 +83,66 @@ sub throw_setup ($msg) {
 sub urlencode (%params) {
     join '&', map { uri_escape($_) . '=' . uri_escape( $params{$_} ) }
         sort keys %params;
+}
+
+# ---------------------------------------------------------------------------
+# Run an external command; return (stdout, stderr).
+# Throws RequestError on non-zero exit.
+# ---------------------------------------------------------------------------
+
+sub run_cmd (@cmd) {
+    my ( $child_in, $child_out, $child_err );
+    my $pid;
+
+    {
+        local $@;
+        my $ok = eval {
+            $pid = IPC::Open3::open3( $child_in, $child_out, $child_err, @cmd );
+            1;
+        };
+        if ( !$ok ) {
+            my $err = $@ || $!;
+            $err //= 'unknown error';
+            throw_request("Failed to run '@cmd': $err");
+        }
+    }
+    close $child_in;
+
+    my $sel = IO::Select->new( $child_out, $child_err );
+    my ( $out_text, $err_text ) = ( '', '' );
+    while ( my @ready = $sel->can_read() ) {
+        for my $fh (@ready) {
+            my $buf = '';
+            my $bytes = sysread $fh, $buf, 4096;
+            if ( defined $bytes ) {
+                if ( $bytes == 0 ) {
+                    $sel->remove($fh);
+                    close $fh;
+                }
+                else {
+                    if ( $fh == $child_out ) { $out_text .= $buf }
+                    else                     { $err_text .= $buf }
+                }
+            }
+            else {
+                # On EAGAIN/EWOULDBLOCK just try again later; otherwise stop using this handle
+                if ( $!{EAGAIN} || $!{EWOULDBLOCK} ) {
+                    next;
+                }
+                $sel->remove($fh);
+                close $fh;
+            }
+        }
+    }
+    waitpid $pid, 0;
+    my $exit = $? >> 8;
+
+    if ( $exit != 0 ) {
+        ( my $prog = $cmd[0] ) =~ s{.*/}{};
+        throw_request("$prog failed (exit $exit): $err_text");
+    }
+
+    return ( $out_text, $err_text );
 }
 
 # ---------------------------------------------------------------------------
