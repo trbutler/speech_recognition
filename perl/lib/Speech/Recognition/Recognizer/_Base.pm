@@ -99,12 +99,25 @@ sub run_cmd (@cmd) {
     my ( $out_text, $err_text ) = ( '', '' );
     while ( my @ready = $sel->can_read() ) {
         for my $fh (@ready) {
-            if ( defined( my $line = <$fh> ) ) {
-                if ( $fh == $child_out ) { $out_text .= $line }
-                else                     { $err_text .= $line }
+            my $buf = '';
+            my $bytes = sysread $fh, $buf, 4096;
+            if ( defined $bytes ) {
+                if ( $bytes == 0 ) {
+                    $sel->remove($fh);
+                    close $fh;
+                }
+                else {
+                    if ( $fh == $child_out ) { $out_text .= $buf }
+                    else                     { $err_text .= $buf }
+                }
             }
             else {
+                # On EAGAIN/EWOULDBLOCK just try again later; otherwise stop using this handle
+                if ( $!{EAGAIN} || $!{EWOULDBLOCK} ) {
+                    next;
+                }
                 $sel->remove($fh);
+                close $fh;
             }
         }
     }
