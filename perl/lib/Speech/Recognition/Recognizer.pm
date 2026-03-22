@@ -588,6 +588,31 @@ sub recognize_whisper_local ( $self, $audio_data, %args ) {
     );
 }
 
+=head2 recognize_yap($audio_data, %args)
+
+Recognizes speech using L<Yap|https://github.com/finnvoor/yap>, a fast
+on-device macOS transcription tool that leverages Apple's Speech framework.
+No API key or internet connection is required.
+
+    my $text = $r->recognize_yap($audio);
+
+    # SRT subtitles with timestamps
+    my $srt = $r->recognize_yap($audio,
+        response_format => 'srt',
+        language        => 'en-US',
+    );
+
+See L<Speech::Recognition::Recognizer::Yap>.
+
+=cut
+
+sub recognize_yap ( $self, $audio_data, %args ) {
+    require Speech::Recognition::Recognizer::Yap;
+    return Speech::Recognition::Recognizer::Yap::recognize(
+        $self, $audio_data, %args
+    );
+}
+
 # ---------------------------------------------------------------------------
 # Utility
 # ---------------------------------------------------------------------------
