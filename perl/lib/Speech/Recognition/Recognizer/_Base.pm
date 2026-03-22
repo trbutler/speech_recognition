@@ -92,7 +92,20 @@ sub urlencode (%params) {
 
 sub run_cmd (@cmd) {
     my ( $child_in, $child_out, $child_err );
-    my $pid = IPC::Open3::open3( $child_in, $child_out, $child_err, @cmd );
+    my $pid;
+
+    {
+        local $@;
+        my $ok = eval {
+            $pid = IPC::Open3::open3( $child_in, $child_out, $child_err, @cmd );
+            1;
+        };
+        if ( !$ok ) {
+            my $err = $@ || $!;
+            $err //= 'unknown error';
+            throw_request("Failed to run '@cmd': $err");
+        }
+    }
     close $child_in;
 
     my $sel = IO::Select->new( $child_out, $child_err );
