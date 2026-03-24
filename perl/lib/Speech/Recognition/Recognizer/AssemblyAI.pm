@@ -72,8 +72,6 @@ use constant {
 };
 
 sub recognize ( $self, $audio_data, %args ) {
-    require Speech::Recognition::Exception;
-
     my $api_token = $args{api_token}
         or Speech::Recognition::Recognizer::_Base::throw_setup(
             'AssemblyAI API token is required (api_token => ...)');
@@ -105,6 +103,7 @@ sub recognize ( $self, $audio_data, %args ) {
         my $status = $data->{status} // '';
 
         if ( $status eq 'error' ) {
+            require Speech::Recognition::Exception;
             die Speech::Recognition::Exception::TranscriptionFailed->new(
                 $data->{error} // 'AssemblyAI transcription failed',
             );
@@ -116,6 +115,7 @@ sub recognize ( $self, $audio_data, %args ) {
         }
 
         # queued or processing — keep waiting
+        require Speech::Recognition::Exception;
         die Speech::Recognition::Exception::TranscriptionNotReady->new(
             'AssemblyAI transcription not yet ready',
             job_name => $job_name,
@@ -183,6 +183,7 @@ sub recognize ( $self, $audio_data, %args ) {
         );
 
     # Raise TranscriptionNotReady with the job ID so the caller can poll later
+    require Speech::Recognition::Exception;
     die Speech::Recognition::Exception::TranscriptionNotReady->new(
         'AssemblyAI transcription submitted; poll with job_name => ' . $transcription_id,
         job_name => $transcription_id,

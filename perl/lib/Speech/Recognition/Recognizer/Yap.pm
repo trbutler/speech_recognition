@@ -92,14 +92,6 @@ my %_FORMAT_FLAG = (
 );
 
 # ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-sub _find_yap_bin () {
-    return Speech::Recognition::Recognizer::_Base::which('yap');
-}
-
-# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -114,7 +106,7 @@ sub recognize ( $self, $audio_data, %args ) {
         "Unknown response_format '$fmt'; valid: text srt vtt json verbose_json"
     ) unless exists $_FORMAT_FLAG{$fmt};
 
-    my $bin = _find_yap_bin();
+    my $bin = Speech::Recognition::Recognizer::_Base::which('yap');
     unless ( defined $bin ) {
         Speech::Recognition::Recognizer::_Base::throw_setup(
             'yap binary not found on PATH.'

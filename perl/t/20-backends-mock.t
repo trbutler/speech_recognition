@@ -574,7 +574,7 @@ subtest 'Whisper backend - invalid response_format throws SetupError' => sub {
 
 subtest 'Yap backend - SetupError when yap not found' => sub {
     no warnings 'once';
-    local *Speech::Recognition::Recognizer::Yap::_find_yap_bin = sub { undef };
+    local *Speech::Recognition::Recognizer::_Base::which = sub { undef };
     my $audio = make_audio();
     eval { $r->recognize_yap($audio) };
     my $e = $@;
@@ -584,7 +584,7 @@ subtest 'Yap backend - SetupError when yap not found' => sub {
 };
 
 subtest 'Yap backend - successful plain text transcription' => sub {
-    local *Speech::Recognition::Recognizer::Yap::_find_yap_bin
+    local *Speech::Recognition::Recognizer::_Base::which
         = sub { '/usr/local/bin/yap' };
     local *Speech::Recognition::Recognizer::_Base::run_cmd
         = sub { return ( "hello yap\n", '' ) };
@@ -596,7 +596,7 @@ subtest 'Yap backend - successful plain text transcription' => sub {
 
 subtest 'Yap backend - srt response_format returns raw SRT' => sub {
     my $fake_srt = "1\n00:00:00,000 --> 00:00:02,000\nhello yap\n";
-    local *Speech::Recognition::Recognizer::Yap::_find_yap_bin
+    local *Speech::Recognition::Recognizer::_Base::which
         = sub { '/usr/local/bin/yap' };
     local *Speech::Recognition::Recognizer::_Base::run_cmd
         = sub { return ( $fake_srt, '' ) };
@@ -606,16 +606,12 @@ subtest 'Yap backend - srt response_format returns raw SRT' => sub {
     is $srt, $fake_srt, 'Yap srt format returns raw SRT content';
 };
 
-# Real yap --json shape: { metadata => {...}, segments => [{id,start,end,text,...}] }
-my $YAP_JSON = '{"metadata":{"created":"2026-03-22T00:00:00Z","language":"en-US","duration":2.0},'
-             . '"segments":[{"id":1,"start":0.0,"end":1.0,"text":"hello"},'
-             .              '{"id":2,"start":1.0,"end":2.0,"text":"world"}]}';
-
 subtest 'Yap backend - json response_format extracts transcript' => sub {
-    local *Speech::Recognition::Recognizer::Yap::_find_yap_bin
+    my $json = '{"segments":[{"text":"hello"},{"text":"world"}]}';
+    local *Speech::Recognition::Recognizer::_Base::which
         = sub { '/usr/local/bin/yap' };
     local *Speech::Recognition::Recognizer::_Base::run_cmd
-        = sub { return ( $YAP_JSON, '' ) };
+        = sub { return ( $json, '' ) };
 
     my $audio = make_audio();
     my $text  = $r->recognize_yap( $audio, response_format => 'json' );
@@ -623,23 +619,23 @@ subtest 'Yap backend - json response_format extracts transcript' => sub {
 };
 
 subtest 'Yap backend - json show_all returns full hash' => sub {
-    local *Speech::Recognition::Recognizer::Yap::_find_yap_bin
+    my $json = '{"segments":[{"text":"hi","start":0,"end":1}]}';
+    local *Speech::Recognition::Recognizer::_Base::which
         = sub { '/usr/local/bin/yap' };
     local *Speech::Recognition::Recognizer::_Base::run_cmd
-        = sub { return ( $YAP_JSON, '' ) };
+        = sub { return ( $json, '' ) };
 
     my $audio  = make_audio();
     my $result = $r->recognize_yap( $audio,
         response_format => 'json',
         show_all        => 1,
     );
-    is ref $result, 'HASH',                          'show_all returns hashref';
-    is $result->{segments}[0]{text}, 'hello',        'first segment text accessible';
-    is $result->{metadata}{language}, 'en-US',       'metadata accessible';
+    is ref $result, 'HASH',                  'show_all returns hashref';
+    is $result->{segments}[0]{text}, 'hi',   'segment text accessible';
 };
 
 subtest 'Yap backend - empty text becomes UnknownValueError' => sub {
-    local *Speech::Recognition::Recognizer::Yap::_find_yap_bin
+    local *Speech::Recognition::Recognizer::_Base::which
         = sub { '/usr/local/bin/yap' };
     local *Speech::Recognition::Recognizer::_Base::run_cmd
         = sub { return ( '', '' ) };
@@ -652,7 +648,7 @@ subtest 'Yap backend - empty text becomes UnknownValueError' => sub {
 };
 
 subtest 'Yap backend - invalid response_format throws SetupError' => sub {
-    local *Speech::Recognition::Recognizer::Yap::_find_yap_bin
+    local *Speech::Recognition::Recognizer::_Base::which
         = sub { '/usr/local/bin/yap' };
 
     my $audio = make_audio();

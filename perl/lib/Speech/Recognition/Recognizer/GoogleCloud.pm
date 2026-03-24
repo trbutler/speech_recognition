@@ -200,7 +200,8 @@ sub recognize ( $self, $audio_data, %args ) {
         languageCode     => $language,
     );
     $config{model}       = $model  if defined $model;
-    $config{useEnhanced} = \1      if $use_enhanced;
+    $config{useEnhanced} = do { require JSON::PP; JSON::PP::true() }
+        if $use_enhanced;
     if ( ref $preferred_phrases eq 'ARRAY' && @$preferred_phrases ) {
         $config{speechContexts} = [ { phrases => $preferred_phrases } ];
     }
@@ -237,6 +238,7 @@ sub recognize ( $self, $audio_data, %args ) {
         @$alts ? $alts->[0]{transcript} // '' : ''
     } @results;
     $transcript =~ s/^\s+|\s+$//g;
+    Speech::Recognition::Recognizer::_Base::throw_unknown() if $transcript eq '';
     return $transcript;
 }
 

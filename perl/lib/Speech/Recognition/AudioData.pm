@@ -5,7 +5,6 @@ use Carp      qw(croak);
 use POSIX     qw(floor);
 use File::Temp qw(tempfile);
 use IPC::Open3 ();
-use Speech::Recognition::Recognizer::_Base ();
 
 our $VERSION = '0.01';
 
@@ -370,7 +369,11 @@ sub _extract_wav_pcm ($wav) {
 
 # Find sox on PATH; return the path or undef.
 sub _find_sox () {
-    return Speech::Recognition::Recognizer::_Base::which('sox');
+    for my $dir ( split /:/, ( $ENV{PATH} // '/usr/local/bin:/usr/bin:/bin' ) ) {
+        my $p = "$dir/sox";
+        return $p if -f $p && -x $p;
+    }
+    return undef;
 }
 
 # Convert between sample widths (like audioop.lin2lin).

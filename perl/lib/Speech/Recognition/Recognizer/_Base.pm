@@ -103,7 +103,7 @@ sub run_cmd (@cmd) {
         if ( !$ok ) {
             my $err = $@ || $!;
             $err //= 'unknown error';
-            throw_request("Failed to run '$cmd[0]': $err");
+            throw_request("Failed to run '@cmd': $err");
         }
     }
     close $child_in;
@@ -112,7 +112,7 @@ sub run_cmd (@cmd) {
     my ( $out_text, $err_text ) = ( '', '' );
     while ( my @ready = $sel->can_read() ) {
         for my $fh (@ready) {
-            my $buf   = '';
+            my $buf = '';
             my $bytes = sysread $fh, $buf, 4096;
             if ( defined $bytes ) {
                 if ( $bytes == 0 ) {
@@ -125,7 +125,10 @@ sub run_cmd (@cmd) {
                 }
             }
             else {
-                next if $!{EAGAIN} || $!{EWOULDBLOCK};
+                # On EAGAIN/EWOULDBLOCK just try again later; otherwise stop using this handle
+                if ( $!{EAGAIN} || $!{EWOULDBLOCK} ) {
+                    next;
+                }
                 $sel->remove($fh);
                 close $fh;
             }
@@ -136,8 +139,7 @@ sub run_cmd (@cmd) {
 
     if ( $exit != 0 ) {
         ( my $prog = $cmd[0] ) =~ s{.*/}{};
-        my $detail = length $err_text ? ": $err_text" : '';
-        throw_request("$prog failed (exit $exit)$detail");
+        throw_request("$prog failed (exit $exit): $err_text");
     }
 
     return ( $out_text, $err_text );

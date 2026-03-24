@@ -12,7 +12,7 @@ Speech::Recognition::Recognizer::Whisper - Local OpenAI Whisper recognition back
 
 =head1 SYNOPSIS
 
-    my $text = $r->recognize_whisper_local($audio,
+    my $srt = $r->recognize_whisper_local($audio,
         model           => 'base',
         language        => 'en',
         response_format => 'srt',
