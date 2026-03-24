@@ -183,7 +183,8 @@ sub _open_file ( $self, $filename ) {
     if ( _try_open_wav( $self, $filename ) ) { return }
     if ( _try_open_aiff( $self, $filename ) ) { return }
     if ( _try_open_flac( $self, $filename ) ) { return }
-    croak "Audio file could not be read as WAV, AIFF, or FLAC: $filename";
+    if ( _try_open_mp3(  $self, $filename ) ) { return }
+    croak "Audio file could not be read as WAV, AIFF, FLAC, or MP3: $filename";
 }
 
 # --- WAV ---
@@ -331,6 +332,46 @@ sub _try_open_flac ( $self, $filename ) {
     return 1;
 }
 
+sub _try_open_mp3 ( $self, $filename ) {
+    # Detect MP3 by magic bytes:
+    #   - "ID3"           — ID3v2 tag (most modern MP3s)
+    #   - \xff\xfb, \xff\xf3, \xff\xf2  — raw MPEG-1/2 layer-3 sync words
+    CORE::open my $fh, '<', $filename or return 0;
+    binmode $fh;
+    my $magic = '';
+    read $fh, $magic, 3;
+    CORE::close $fh;
+
+    my $is_id3  = ( $magic eq 'ID3' );
+    my $is_sync = ( substr($magic, 0, 2) =~ /\A\xff[\xfb\xf3\xf2]\z/ );
+    return 0 unless $is_id3 || $is_sync;
+
+    require Speech::Recognition::Recognizer::_Base;
+
+    # Prefer ffmpeg (already required by Podizer); fall back to mpg123.
+    my $decoder = Speech::Recognition::Recognizer::_Base::which('ffmpeg')
+               // Speech::Recognition::Recognizer::_Base::which('mpg123');
+    unless ( defined $decoder ) {
+        croak "MP3 decoding requires ffmpeg or mpg123 on PATH";
+    }
+
+    my ( $tmp_fh, $tmp_wav ) = tempfile( SUFFIX => '.wav', UNLINK => 0 );
+    CORE::close $tmp_fh;
+    push @{ $self->{_tmp_files} }, $tmp_wav;
+
+    my @cmd = ( basename($decoder) eq 'ffmpeg' )
+        ? ( $decoder, '-y', '-i', $filename,
+            '-ar', '16000', '-ac', '1', '-f', 'wav', $tmp_wav )
+        : ( $decoder, '--quiet', '--wav', $tmp_wav, $filename );
+
+    system(@cmd) == 0
+        or croak "MP3 decoder failed for '$filename' (exit $?)";
+
+    my $ok = _try_open_wav( $self, $tmp_wav );
+    croak "Could not read MP3-decoded WAV from '$tmp_wav'" unless $ok;
+    return 1;
+}
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -395,9 +436,13 @@ Stereo audio is automatically downmixed to mono by averaging the two channels.
 =head1 AUTHOR
 
 Perl port of the Python speech_recognition library by Anthony Zhang (Uberi).
+The original Python library is available at L<https://github.com/Uberi/speech_recognition>.
 
 =head1 LICENSE
 
-BSD 3-Clause License
+Original Python Code Copyright 2014-2026 Anthony Zhang (Uberi). 
+Perl port Copyright 2026 Timothy Butler.
+
+BSD 3-Clause License.  See L<https://opensource.org/licenses/BSD-3-Clause>.
 
 =cut

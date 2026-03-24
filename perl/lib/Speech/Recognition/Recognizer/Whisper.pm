@@ -113,7 +113,7 @@ sub _run_whisper ( $bin, $name, $wav_file, $model, $language, $task, $out_dir, $
         push @cmd, $wav_file;
     }
     else {
-        # openai-whisper and whisper-mps share the same CLI interface
+        # openai-whisper CLI interface
         @cmd = (
             $bin,
             '--model'         => $model,

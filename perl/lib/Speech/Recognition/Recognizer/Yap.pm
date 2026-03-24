@@ -63,6 +63,16 @@ Defaults to the system locale.
 
 =item * C<show_all> - When C<response_format> is C<json> or C<verbose_json>,
 return the full decoded JSON hash instead of just the transcript string.
+The hash has the shape:
+
+    {
+        metadata => { created => '...', language => '...', duration => ... },
+        segments => [
+            { id => 1, start => 0.0, end => 1.5, text => '...' },
+            ...
+        ],
+    }
+
 Ignored for other formats.
 
 =back
