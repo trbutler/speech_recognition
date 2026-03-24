@@ -436,9 +436,13 @@ Stereo audio is automatically downmixed to mono by averaging the two channels.
 =head1 AUTHOR
 
 Perl port of the Python speech_recognition library by Anthony Zhang (Uberi).
+The original Python library is available at L<https://github.com/Uberi/speech_recognition>.
 
 =head1 LICENSE
 
-BSD 3-Clause License
+Original Python Code Copyright 2014-2026 Anthony Zhang (Uberi). 
+Perl port Copyright 2026 Timothy Butler.
+
+BSD 3-Clause License.  See L<https://opensource.org/licenses/BSD-3-Clause>.
 
 =cut
