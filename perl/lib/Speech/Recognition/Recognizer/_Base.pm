@@ -139,7 +139,8 @@ sub run_cmd (@cmd) {
 
     if ( $exit != 0 ) {
         ( my $prog = $cmd[0] ) =~ s{.*/}{};
-        throw_request("$prog failed (exit $exit): $err_text");
+        my $detail = length $err_text ? ": $err_text" : '';
+        throw_request("$prog failed (exit $exit)$detail");
     }
 
     return ( $out_text, $err_text );
