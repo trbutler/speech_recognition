@@ -180,11 +180,12 @@ sub isa_audio_source { 1 }
 # ---------------------------------------------------------------------------
 
 sub _open_file ( $self, $filename ) {
-    if ( _try_open_wav( $self, $filename ) ) { return }
-    if ( _try_open_aiff( $self, $filename ) ) { return }
-    if ( _try_open_flac( $self, $filename ) ) { return }
-    if ( _try_open_mp3(  $self, $filename ) ) { return }
-    croak "Audio file could not be read as WAV, AIFF, FLAC, or MP3: $filename";
+    if ( _try_open_wav(     $self, $filename ) ) { return }
+    if ( _try_open_aiff(    $self, $filename ) ) { return }
+    if ( _try_open_flac(    $self, $filename ) ) { return }
+    if ( _try_open_mp3(     $self, $filename ) ) { return }
+    if ( _try_open_m4a(     $self, $filename ) ) { return }
+    croak "Audio file could not be read as WAV, AIFF, FLAC, MP3, or M4A: $filename";
 }
 
 # --- WAV ---
@@ -369,6 +370,32 @@ sub _try_open_mp3 ( $self, $filename ) {
 
     my $ok = _try_open_wav( $self, $tmp_wav );
     croak "Could not read MP3-decoded WAV from '$tmp_wav'" unless $ok;
+    return 1;
+}
+
+sub _try_open_m4a ( $self, $filename ) {
+    # Detect M4A/MP4 by the ISO Base Media 'ftyp' box at bytes 4-7.
+    CORE::open my $fh, '<', $filename or return 0;
+    binmode $fh;
+    my $magic = '';
+    read $fh, $magic, 8;
+    CORE::close $fh;
+    return 0 unless length($magic) == 8 && substr($magic, 4, 4) eq 'ftyp';
+
+    require Speech::Recognition::Recognizer::_Base;
+    my $decoder = Speech::Recognition::Recognizer::_Base::which('ffmpeg')
+        or croak "M4A/MP4 decoding requires ffmpeg on PATH";
+
+    my ( $tmp_fh, $tmp_wav ) = tempfile( SUFFIX => '.wav', UNLINK => 0 );
+    CORE::close $tmp_fh;
+    push @{ $self->{_tmp_files} }, $tmp_wav;
+
+    system( $decoder, '-y', '-i', $filename,
+            '-ar', '16000', '-ac', '1', '-f', 'wav', $tmp_wav ) == 0
+        or croak "ffmpeg failed for '$filename' (exit $?)";
+
+    my $ok = _try_open_wav( $self, $tmp_wav );
+    croak "Could not read M4A/MP4-decoded WAV" unless $ok;
     return 1;
 }
 
