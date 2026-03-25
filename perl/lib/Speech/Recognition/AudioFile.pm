@@ -351,37 +351,45 @@ sub _try_open_compressed ( $self, $filename, $format ) {
     require Speech::Recognition::Recognizer::_Base;
 
     my @cmd;
-    my $missing_decoder_msg;
+    my $decoder;
     my $decode_failed_msg;
     my $decoded_wav_failed_msg;
 
+    # Standard ffmpeg flags for all formats (16kHz mono WAV output)
+    my @ffmpeg_flags = ( '-y', '-i', $filename,
+        '-ar', '16000', '-ac', '1', '-f', 'wav', '__OUT__' );
+
     if ( $format eq 'flac' ) {
-        my $flac = Speech::Recognition::Recognizer::_Base::which('flac') or return 0;
-        @cmd = ( $flac, '--decode', '--silent', '__OUT__', '--force', $filename );
-        $decode_failed_msg = "flac decoder failed for '$filename' (exit \$?)";
+        # Try native flac tool first; fall back to ffmpeg if unavailable
+        $decoder = Speech::Recognition::Recognizer::_Base::which('flac');
+        if ( defined $decoder ) {
+            @cmd = ( $decoder, '--decode', '--silent', '__OUT__', '--force', $filename );
+        }
+        else {
+            $decoder = Speech::Recognition::Recognizer::_Base::which('ffmpeg');
+            croak 'FLAC decoding requires flac or ffmpeg on PATH' unless defined $decoder;
+            @cmd = ( $decoder, @ffmpeg_flags );
+        }
+        $decode_failed_msg = "FLAC decoder failed for '$filename' (exit \$?)";
         $decoded_wav_failed_msg = "Could not read FLAC-decoded WAV from '__TMP_WAV__'";
     }
     elsif ( $format eq 'mp3' ) {
-        my $decoder = Speech::Recognition::Recognizer::_Base::which('ffmpeg')
-                   // Speech::Recognition::Recognizer::_Base::which('mpg123');
-        $missing_decoder_msg = 'MP3 decoding requires ffmpeg or mpg123 on PATH';
-        croak $missing_decoder_msg unless defined $decoder;
+        $decoder = Speech::Recognition::Recognizer::_Base::which('ffmpeg')
+                // Speech::Recognition::Recognizer::_Base::which('mpg123');
+        croak 'MP3 decoding requires ffmpeg or mpg123 on PATH' unless defined $decoder;
 
         my $is_ffmpeg = ( $decoder =~ m{(?:^|/)ffmpeg\z} );
         @cmd = $is_ffmpeg
-            ? ( $decoder, '-y', '-i', $filename,
-                '-ar', '16000', '-ac', '1', '-f', 'wav', '__OUT__' )
+            ? ( $decoder, @ffmpeg_flags )
             : ( $decoder, '--quiet', '--wav', '__OUT__', $filename );
         $decode_failed_msg = "MP3 decoder failed for '$filename' (exit \$?)";
         $decoded_wav_failed_msg = "Could not read MP3-decoded WAV from '__TMP_WAV__'";
     }
     elsif ( $format eq 'm4a' ) {
-        my $ffmpeg = Speech::Recognition::Recognizer::_Base::which('ffmpeg');
-        $missing_decoder_msg = 'M4A/MP4 decoding requires ffmpeg on PATH';
-        croak $missing_decoder_msg unless defined $ffmpeg;
+        $decoder = Speech::Recognition::Recognizer::_Base::which('ffmpeg');
+        croak 'M4A/MP4 decoding requires ffmpeg on PATH' unless defined $decoder;
 
-        @cmd = ( $ffmpeg, '-y', '-i', $filename,
-            '-ar', '16000', '-ac', '1', '-f', 'wav', '__OUT__' );
+        @cmd = ( $decoder, @ffmpeg_flags );
         $decode_failed_msg = "ffmpeg failed for '$filename' (exit \$?)";
         $decoded_wav_failed_msg = 'Could not read M4A/MP4-decoded WAV';
     }
@@ -394,8 +402,14 @@ sub _try_open_compressed ( $self, $filename, $format ) {
     push @{ $self->{_tmp_files} }, $tmp_wav;
 
     for my $arg (@cmd) {
-        $arg = "--output-name=$tmp_wav" if $arg eq '__OUT__' && $format eq 'flac';
-        $arg = $tmp_wav                if $arg eq '__OUT__' && $format ne 'flac';
+        if ( $arg eq '__OUT__' ) {
+            if ( $format eq 'flac' && $decoder =~ m{(?:^|/)flac\z} ) {
+                $arg = "--output-name=$tmp_wav";
+            }
+            else {
+                $arg = $tmp_wav;
+            }
+        }
     }
 
     system(@cmd) == 0

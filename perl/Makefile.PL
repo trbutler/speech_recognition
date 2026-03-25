@@ -50,5 +50,52 @@ WriteMakefile(
                 prereqs     => { runtime => { requires => { 'Crypt::OpenSSL::RSA' => 0 } } },
             },
         },
+        # Informational metadata for non-Perl runtime requirements.
+        # CPAN prereqs cannot express external binaries, so these are kept
+        # under x_* keys for discoverability by humans/tooling.
+        x_external_programs => {
+            audio_decoding => {
+                required_for => [
+                    'Speech::Recognition::AudioFile (compressed audio decode)',
+                ],
+                alternatives => [
+                    {
+                        program => 'ffmpeg',
+                        supports_formats => [ 'mp3', 'm4a', 'mp4' ],
+                    },
+                    {
+                        program => 'mpg123',
+                        supports_formats => [ 'mp3' ],
+                    },
+                    {
+                        program => 'flac',
+                        supports_formats => [ 'flac' ],
+                    },
+                ],
+            },
+            local_speech_backends => {
+                optional_for => [
+                    'Speech::Recognition::Recognizer::Yap',
+                    'Speech::Recognition::Recognizer::Whisper',
+                ],
+                alternatives => [
+                    {
+                        program => 'yap',
+                        backend => 'recognize_yap',
+                        platform => 'macOS',
+                    },
+                    {
+                        program => 'whisper',
+                        backend => 'recognize_whisper_local',
+                        notes => 'openai-whisper CLI',
+                    },
+                    {
+                        program => 'whisper-cpp',
+                        backend => 'recognize_whisper_local',
+                        notes => 'whisper.cpp CLI',
+                    },
+                ],
+            },
+        },
     },
 );
