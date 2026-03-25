@@ -478,9 +478,9 @@ The original Python library is available at L<https://github.com/Uberi/speech_re
 
 =head1 LICENSE
 
-Original Python Code Copyright 2014-2026 Anthony Zhang (Uberi). 
+Original Python code Copyright 2014-2026 Anthony Zhang (Uberi).
 Perl port Copyright 2026 Timothy Butler.
 
-BSD 3-Clause License.  See L<https://opensource.org/licenses/BSD-3-Clause>.
+BSD 3-Clause License. See L<https://opensource.org/licenses/BSD-3-Clause>.
 
 =cut

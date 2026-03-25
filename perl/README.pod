@@ -76,6 +76,9 @@ features are not yet implemented.  See F<TODO.md>.
 
 =head1 LICENSE
 
-BSD 3-Clause License.
+Original Python code Copyright 2014-2026 Anthony Zhang (Uberi).
+Perl port Copyright 2026 Timothy Butler.
+
+BSD 3-Clause License. See L<https://opensource.org/licenses/BSD-3-Clause>.
 
 =cut

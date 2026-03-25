@@ -200,6 +200,9 @@ Perl port of the Python speech_recognition library by Anthony Zhang (Uberi).
 
 =head1 LICENSE
 
-BSD 3-Clause License
+Original Python code Copyright 2014-2026 Anthony Zhang (Uberi).
+Perl port Copyright 2026 Timothy Butler.
+
+BSD 3-Clause License. See L<https://opensource.org/licenses/BSD-3-Clause>.
 
 =cut
