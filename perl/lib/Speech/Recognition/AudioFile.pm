@@ -139,7 +139,7 @@ sub close ($self) {
         $self->{stream}   = undef;
         $self->{DURATION} = undef;
     }
-    # Remove any temp files created during FLAC decoding
+    # Remove temp files created while decoding compressed formats to WAV.
     for my $f ( @{ $self->{_tmp_files} } ) {
         unlink $f if -f $f;
     }
@@ -180,11 +180,28 @@ sub isa_audio_source { 1 }
 # ---------------------------------------------------------------------------
 
 sub _open_file ( $self, $filename ) {
-    if ( _try_open_wav(     $self, $filename ) ) { return }
-    if ( _try_open_aiff(    $self, $filename ) ) { return }
-    if ( _try_open_flac(    $self, $filename ) ) { return }
-    if ( _try_open_mp3(     $self, $filename ) ) { return }
-    if ( _try_open_m4a(     $self, $filename ) ) { return }
+    my $magic = _read_magic( $filename, 12 );
+
+    # read() may return fewer than 12 bytes for short/truncated files.
+    if ( defined $magic && length($magic) >= 12 ) {
+        my ( $riff, undef, $wave ) = unpack( 'a4 V a4', $magic );
+        if ( $riff eq 'RIFF' && $wave eq 'WAVE' ) {
+            _try_open_wav( $self, $filename ) and return;
+        }
+
+        my ( $form, undef, $type ) = unpack( 'a4 N a4', $magic );
+        if ( $form eq 'FORM' && ( $type eq 'AIFF' || $type eq 'AIFC' ) ) {
+            _try_open_aiff( $self, $filename ) and return;
+        }
+
+        my $compressed_format = _detect_compressed_format($magic);
+        if ( defined $compressed_format ) {
+            _try_open_compressed( $self, $filename, $compressed_format ) and return;
+        }
+    }
+
+    if ( _try_open_wav(  $self, $filename ) ) { return }
+    if ( _try_open_aiff( $self, $filename ) ) { return }
     croak "Audio file could not be read as WAV, AIFF, FLAC, MP3, or M4A: $filename";
 }
 
@@ -307,95 +324,89 @@ sub _try_open_aiff ( $self, $filename ) {
     return 1;
 }
 
-# --- FLAC (decode via 'flac' command) ---
-
-sub _try_open_flac ( $self, $filename ) {
-    # Detect FLAC by magic bytes
-    CORE::open my $fh, '<', $filename or return 0;
+sub _read_magic ( $filename, $nbytes ) {
+    CORE::open my $fh, '<', $filename or return undef;
     binmode $fh;
     my $magic = '';
-    read $fh, $magic, 4;
+    read $fh, $magic, $nbytes;
     CORE::close $fh;
-    return 0 unless $magic eq 'fLaC';
-
-    require Speech::Recognition::Recognizer::_Base;
-    my $flac = Speech::Recognition::Recognizer::_Base::which('flac') or return 0;
-
-    my ( $tmp_fh, $tmp_wav ) = tempfile( SUFFIX => '.wav', UNLINK => 0 );
-    CORE::close $tmp_fh;
-    push @{ $self->{_tmp_files} }, $tmp_wav;
-
-    system( $flac, '--decode', '--silent', "--output-name=$tmp_wav", '--force', $filename ) == 0
-        or croak "flac decoder failed for '$filename' (exit $?)";
-
-    my $ok = _try_open_wav( $self, $tmp_wav );
-    croak "Could not read FLAC-decoded WAV from '$tmp_wav'" unless $ok;
-    return 1;
+    return $magic;
 }
 
-sub _try_open_mp3 ( $self, $filename ) {
-    # Detect MP3 by magic bytes:
-    #   - "ID3"           — ID3v2 tag (most modern MP3s)
-    #   - \xff\xfb, \xff\xf3, \xff\xf2  — raw MPEG-1/2 layer-3 sync words
-    CORE::open my $fh, '<', $filename or return 0;
-    binmode $fh;
-    my $magic = '';
-    read $fh, $magic, 3;
-    CORE::close $fh;
+sub _detect_compressed_format ($magic) {
+    return 'flac' if length($magic) >= 4 && substr( $magic, 0, 4 ) eq 'fLaC';
 
-    my $is_id3  = ( $magic eq 'ID3' );
-    my $is_sync = ( substr($magic, 0, 2) =~ /\A\xff[\xfb\xf3\xf2]\z/ );
-    return 0 unless $is_id3 || $is_sync;
+    # MP3 starts with ID3v2 or MPEG sync bytes.
+    my $mp3_head = substr( $magic, 0, 3 );
+    my $is_id3   = ( $mp3_head eq 'ID3' );
+    my $is_sync  = ( substr( $mp3_head, 0, 2 ) =~ /\A\xff[\xfb\xf3\xf2]\z/ );
+    return 'mp3' if $is_id3 || $is_sync;
 
+    # M4A/MP4 uses 'ftyp' in the ISO Base Media box header.
+    return 'm4a' if length($magic) >= 8 && substr( $magic, 4, 4 ) eq 'ftyp';
+    return undef;
+}
+
+sub _try_open_compressed ( $self, $filename, $format ) {
     require Speech::Recognition::Recognizer::_Base;
 
-    # Prefer ffmpeg (already required by Podizer); fall back to mpg123.
-    my $decoder = Speech::Recognition::Recognizer::_Base::which('ffmpeg')
-               // Speech::Recognition::Recognizer::_Base::which('mpg123');
-    unless ( defined $decoder ) {
-        croak "MP3 decoding requires ffmpeg or mpg123 on PATH";
+    my @cmd;
+    my $missing_decoder_msg;
+    my $decode_failed_msg;
+    my $decoded_wav_failed_msg;
+
+    if ( $format eq 'flac' ) {
+        my $flac = Speech::Recognition::Recognizer::_Base::which('flac') or return 0;
+        @cmd = ( $flac, '--decode', '--silent', '__OUT__', '--force', $filename );
+        $decode_failed_msg = "flac decoder failed for '$filename' (exit \$?)";
+        $decoded_wav_failed_msg = "Could not read FLAC-decoded WAV from '__TMP_WAV__'";
+    }
+    elsif ( $format eq 'mp3' ) {
+        my $decoder = Speech::Recognition::Recognizer::_Base::which('ffmpeg')
+                   // Speech::Recognition::Recognizer::_Base::which('mpg123');
+        $missing_decoder_msg = 'MP3 decoding requires ffmpeg or mpg123 on PATH';
+        croak $missing_decoder_msg unless defined $decoder;
+
+        my $is_ffmpeg = ( $decoder =~ m{(?:^|/)ffmpeg\z} );
+        @cmd = $is_ffmpeg
+            ? ( $decoder, '-y', '-i', $filename,
+                '-ar', '16000', '-ac', '1', '-f', 'wav', '__OUT__' )
+            : ( $decoder, '--quiet', '--wav', '__OUT__', $filename );
+        $decode_failed_msg = "MP3 decoder failed for '$filename' (exit \$?)";
+        $decoded_wav_failed_msg = "Could not read MP3-decoded WAV from '__TMP_WAV__'";
+    }
+    elsif ( $format eq 'm4a' ) {
+        my $ffmpeg = Speech::Recognition::Recognizer::_Base::which('ffmpeg');
+        $missing_decoder_msg = 'M4A/MP4 decoding requires ffmpeg on PATH';
+        croak $missing_decoder_msg unless defined $ffmpeg;
+
+        @cmd = ( $ffmpeg, '-y', '-i', $filename,
+            '-ar', '16000', '-ac', '1', '-f', 'wav', '__OUT__' );
+        $decode_failed_msg = "ffmpeg failed for '$filename' (exit \$?)";
+        $decoded_wav_failed_msg = 'Could not read M4A/MP4-decoded WAV';
+    }
+    else {
+        return 0;
     }
 
     my ( $tmp_fh, $tmp_wav ) = tempfile( SUFFIX => '.wav', UNLINK => 0 );
     CORE::close $tmp_fh;
     push @{ $self->{_tmp_files} }, $tmp_wav;
 
-    my @cmd = ( basename($decoder) eq 'ffmpeg' )
-        ? ( $decoder, '-y', '-i', $filename,
-            '-ar', '16000', '-ac', '1', '-f', 'wav', $tmp_wav )
-        : ( $decoder, '--quiet', '--wav', $tmp_wav, $filename );
+    for my $arg (@cmd) {
+        $arg = "--output-name=$tmp_wav" if $arg eq '__OUT__' && $format eq 'flac';
+        $arg = $tmp_wav                if $arg eq '__OUT__' && $format ne 'flac';
+    }
 
     system(@cmd) == 0
-        or croak "MP3 decoder failed for '$filename' (exit $?)";
+        or croak $decode_failed_msg;
 
     my $ok = _try_open_wav( $self, $tmp_wav );
-    croak "Could not read MP3-decoded WAV from '$tmp_wav'" unless $ok;
-    return 1;
-}
-
-sub _try_open_m4a ( $self, $filename ) {
-    # Detect M4A/MP4 by the ISO Base Media 'ftyp' box at bytes 4-7.
-    CORE::open my $fh, '<', $filename or return 0;
-    binmode $fh;
-    my $magic = '';
-    read $fh, $magic, 8;
-    CORE::close $fh;
-    return 0 unless length($magic) == 8 && substr($magic, 4, 4) eq 'ftyp';
-
-    require Speech::Recognition::Recognizer::_Base;
-    my $decoder = Speech::Recognition::Recognizer::_Base::which('ffmpeg')
-        or croak "M4A/MP4 decoding requires ffmpeg on PATH";
-
-    my ( $tmp_fh, $tmp_wav ) = tempfile( SUFFIX => '.wav', UNLINK => 0 );
-    CORE::close $tmp_fh;
-    push @{ $self->{_tmp_files} }, $tmp_wav;
-
-    system( $decoder, '-y', '-i', $filename,
-            '-ar', '16000', '-ac', '1', '-f', 'wav', $tmp_wav ) == 0
-        or croak "ffmpeg failed for '$filename' (exit $?)";
-
-    my $ok = _try_open_wav( $self, $tmp_wav );
-    croak "Could not read M4A/MP4-decoded WAV" unless $ok;
+    if ( !$ok ) {
+        my $msg = $decoded_wav_failed_msg;
+        $msg =~ s/__TMP_WAV__/$tmp_wav/g;
+        croak $msg;
+    }
     return 1;
 }
 
