@@ -6,6 +6,7 @@ TODO.md
 lib/Speech/Recognition.pm
 lib/Speech/Recognition/AudioData.pm
 lib/Speech/Recognition/AudioFile.pm
+lib/Speech/Recognition/Boilerplate.pm
 lib/Speech/Recognition/Exception.pm
 lib/Speech/Recognition/Microphone.pm
 lib/Speech/Recognition/Recognizer.pm

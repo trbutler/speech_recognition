@@ -1,6 +1,6 @@
 package Speech::Recognition::AudioFile;
 
-use v5.36;
+use Speech::Recognition::Boilerplate;
 use Carp       qw(croak);
 use File::Temp qw(tempfile);
 
@@ -53,8 +53,6 @@ Stereo files are automatically downmixed to mono.
 
 package Speech::Recognition::AudioFile::Stream;
 
-use v5.36;
-
 sub new ( $class, $pcm_data, $sample_width ) {
     return bless {
         _data  => $pcm_data,
@@ -85,7 +83,6 @@ sub close ($self) {
 
 package Speech::Recognition::AudioFile;
 
-use v5.36;
 use Carp       qw(croak);
 use File::Temp qw(tempfile);
 

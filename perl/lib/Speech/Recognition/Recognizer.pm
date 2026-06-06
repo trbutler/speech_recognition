@@ -1,6 +1,6 @@
 package Speech::Recognition::Recognizer;
 
-use v5.36;
+use Speech::Recognition::Boilerplate;
 use Carp           qw(croak);
 use POSIX          qw(ceil);
 use threads;

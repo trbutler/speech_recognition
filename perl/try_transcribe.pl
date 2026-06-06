@@ -1,8 +1,8 @@
 #!/usr/bin/env perl
-use v5.36;
-use open ':std', ':utf8';
 use FindBin;
 use lib "$FindBin::Bin/lib";
+use Speech::Recognition::Boilerplate;
+use open ':std', ':utf8';
 
 use Speech::Recognition::AudioFile;
 use Speech::Recognition::Recognizer;

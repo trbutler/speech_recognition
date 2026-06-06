@@ -1,6 +1,6 @@
 package Speech::Recognition::Recognizer::_Base;
 
-use v5.36;
+use Speech::Recognition::Boilerplate;
 use Carp            qw(croak);
 use IPC::Open3            ();
 use IO::Select            ();

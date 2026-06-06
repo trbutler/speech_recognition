@@ -1,6 +1,6 @@
 package Speech::Recognition::Recognizer::Whisper;
 
-use v5.36;
+use Speech::Recognition::Boilerplate;
 use File::Temp qw(tempfile tempdir);
 use Speech::Recognition::Recognizer::_Base qw();
 

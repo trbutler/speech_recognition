@@ -1,6 +1,6 @@
 package Speech::Recognition::Recognizer::GoogleCloud;
 
-use v5.36;
+use Speech::Recognition::Boilerplate;
 use HTTP::Request         ();
 use MIME::Base64          qw(encode_base64);
 use URI::Escape           qw(uri_escape);

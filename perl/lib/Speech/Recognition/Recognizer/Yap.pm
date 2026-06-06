@@ -1,6 +1,6 @@
 package Speech::Recognition::Recognizer::Yap;
 
-use v5.36;
+use Speech::Recognition::Boilerplate;
 use File::Temp qw(tempfile);
 use Speech::Recognition::Recognizer::_Base qw();
 

@@ -8,7 +8,7 @@ WriteMakefile(
     VERSION_FROM     => 'lib/Speech/Recognition.pm',
     ABSTRACT_FROM    => 'lib/Speech/Recognition.pm',
     LICENSE          => 'bsd',
-    MIN_PERL_VERSION => '5.036',
+    MIN_PERL_VERSION => '5.034',
 
     PREREQ_PM => {
         # Core modules (always available since the minimum Perl version)

@@ -1,6 +1,6 @@
 package Speech::Recognition::Recognizer::Houndify;
 
-use v5.36;
+use Speech::Recognition::Boilerplate;
 use HTTP::Request ();
 use MIME::Base64  qw(encode_base64 decode_base64 encode_base64url decode_base64url);
 use Digest::SHA   qw(hmac_sha256);

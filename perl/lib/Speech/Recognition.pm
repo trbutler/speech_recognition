@@ -1,6 +1,6 @@
 package Speech::Recognition;
 
-use v5.36;
+use Speech::Recognition::Boilerplate;
 
 our $VERSION = '0.01';
 

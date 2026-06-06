@@ -1,6 +1,6 @@
 package Speech::Recognition::Recognizer::IBM;
 
-use v5.36;
+use Speech::Recognition::Boilerplate;
 use HTTP::Request ();
 use MIME::Base64  qw(encode_base64);
 use Speech::Recognition::Recognizer::_Base qw();

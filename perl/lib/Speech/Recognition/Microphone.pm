@@ -1,6 +1,6 @@
 package Speech::Recognition::Microphone;
 
-use v5.36;
+use Speech::Recognition::Boilerplate;
 use Carp qw(croak);
 use Speech::Recognition::Recognizer::_Base ();
 
@@ -227,8 +227,6 @@ sub with ( $self, $callback ) {
 
 package Speech::Recognition::Microphone::Stream;
 
-use v5.36;
-
 sub new ( $class, $fh, $sample_width ) {
     return bless { _fh => $fh, _width => $sample_width }, $class;
 }
@@ -250,8 +248,6 @@ sub close ($self) {
 # ---------------------------------------------------------------------------
 
 package Speech::Recognition::Microphone;
-
-use v5.36;
 
 sub _find_backend {
     for my $b (@BACKENDS) {

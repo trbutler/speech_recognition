@@ -1,6 +1,6 @@
 package Speech::Recognition::Recognizer::OpenAI;
 
-use v5.36;
+use Speech::Recognition::Boilerplate;
 use Speech::Recognition::Recognizer::_Base qw();
 
 our $VERSION = '0.01';

@@ -1,6 +1,6 @@
 package Speech::Recognition::Recognizer::AssemblyAI;
 
-use v5.36;
+use Speech::Recognition::Boilerplate;
 use HTTP::Request         ();
 use Speech::Recognition::Recognizer::_Base qw();
 

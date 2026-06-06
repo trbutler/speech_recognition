@@ -1,6 +1,6 @@
 package Speech::Recognition::AudioData;
 
-use v5.36;
+use Speech::Recognition::Boilerplate;
 use Carp      qw(croak);
 use POSIX     qw(floor);
 use File::Temp qw(tempfile);

@@ -1,8 +1,8 @@
 use strict;
 use warnings;
-use v5.36;
 use Test::More;
 use lib 'lib';
+use Speech::Recognition::Boilerplate;
 
 use Speech::Recognition::AudioData;
 use Speech::Recognition::AudioFile;
