@@ -30,9 +30,12 @@ The following binaries are searched on C<$PATH> in order:
 =item 1. C<whisper> — the official openai-whisper CLI
 (C<pip install openai-whisper>).
 
-=item 2. C<whisper-cpp> — a pure C++ re-implementation with no Python
-dependency (L<https://github.com/ggerganov/whisper.cpp>).  Supports hardware
-acceleration on Apple Silicon via Metal, NVIDIA GPUs via CUDA, and others.
+=item 2. C<whisper-cpp> or C<whisper-cli> — a pure C++ re-implementation
+with no Python dependency (L<https://github.com/ggerganov/whisper.cpp>).
+Supports hardware acceleration on Apple Silicon via Metal, NVIDIA GPUs via
+CUDA, and others. The project's own Homebrew formula installs the binary
+as C<whisper-cli>; older builds/manual installs may name it C<whisper-cpp>
+instead — both are recognized.
 
 =back
 
@@ -65,10 +68,11 @@ Ignored for other formats.
 =cut
 
 # ---------------------------------------------------------------------------
-# Binary search order: whisper → whisper-cpp
+# Binary search order: whisper → whisper-cpp → whisper-cli (Homebrew's
+# whisper-cpp formula names its binary whisper-cli, not whisper-cpp)
 # ---------------------------------------------------------------------------
 
-my @_WHISPER_BINS = qw( whisper whisper-cpp );
+my @_WHISPER_BINS = qw( whisper whisper-cpp whisper-cli );
 
 sub _find_whisper_bin () {
     for my $name (@_WHISPER_BINS) {
@@ -100,7 +104,7 @@ sub _run_whisper ( $bin, $name, $wav_file, $model, $language, $task, $out_dir, $
     my $fmap = $_FORMAT_MAP{$fmt};
     my @cmd;
 
-    if ( $name eq 'whisper-cpp' ) {
+    if ( $name eq 'whisper-cpp' || $name eq 'whisper-cli' ) {
         # whisper.cpp CLI uses different flag names
         @cmd = (
             $bin,
@@ -132,7 +136,7 @@ sub _run_whisper ( $bin, $name, $wav_file, $model, $language, $task, $out_dir, $
     # Locate the output file whisper wrote
     my $ext      = $fmap->[2];
     my $out_file;
-    if ( $name eq 'whisper-cpp' ) {
+    if ( $name eq 'whisper-cpp' || $name eq 'whisper-cli' ) {
         $out_file = "$out_dir/output.$ext";
     }
     else {
